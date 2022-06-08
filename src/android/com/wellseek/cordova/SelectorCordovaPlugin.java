@@ -11,6 +11,7 @@ import android.os.Build;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
@@ -27,6 +28,7 @@ import org.json.JSONObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.function.Consumer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -124,38 +126,54 @@ public class SelectorCordovaPlugin extends CordovaPlugin {
                         Log.d(TAG, "error, views is null");
                     }
 
+                    Consumer<DialogInterface> confirm = (dialog) -> {
+                        Log.d(TAG, "User confirmed");
+                        JSONArray userSelectedValues = new JSONArray();
+
+                        JSONObject jsonValue = null;
+                        try {
+
+                            String value;
+                            for (int i = 0; i < asFinal.size(); ++i) {
+                                jsonValue = new JSONObject();
+
+                                value = asFinal.get(i).getDataToShow(asFinal.get(i).getNumberPicker().getValue());
+                                jsonValue.put(INDEX_KEY, asFinal.get(i).getNumberPicker().getValue());
+
+                                if (value != null && value.equalsIgnoreCase(SPACE))
+                                    jsonValue.put(displayKey, BLANK_STRING);
+                                else
+                                    jsonValue.put(displayKey, value);
+
+                                userSelectedValues.put(jsonValue);
+                            }
+                        } catch (JSONException je) {
+
+                        }
+
+                        final PluginResult resultToReturnToJS = new PluginResult(PluginResult.Status.OK, (userSelectedValues));
+                        callbackContext.sendPluginResult(resultToReturnToJS);
+                        dialog.dismiss();
+                    };
+
                     builder
                             .setCancelable(false)
+                            .setOnKeyListener(new DialogInterface.OnKeyListener() {
+                                @Override
+                                public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
+                                    Log.d(TAG, "onKey " + keyCode + "|" + KeyEvent.KEYCODE_ESCAPE + "|" + KeyEvent.KEYCODE_DPAD_CENTER);
+                                    if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                                        Log.d(TAG, "Confirm key pressed");
+                                        confirm.accept(dialog);
+                                    }
+                                    return false;
+                                }
+                            })
                             .setPositiveButton(positiveButton,
                                     new DialogInterface.OnClickListener() {
                                         public void onClick(DialogInterface dialog,
                                                             int id) {
-                                            JSONArray userSelectedValues = new JSONArray();
-
-                                            JSONObject jsonValue = null;
-                                            try {
-
-                                                String value;
-                                                for (int i = 0; i < asFinal.size(); ++i) {
-                                                    jsonValue = new JSONObject();
-
-                                                    value = asFinal.get(i).getDataToShow(asFinal.get(i).getNumberPicker().getValue());
-                                                    jsonValue.put(INDEX_KEY, asFinal.get(i).getNumberPicker().getValue());
-
-                                                    if (value != null && value.equalsIgnoreCase(SPACE))
-                                                        jsonValue.put(displayKey, BLANK_STRING);
-                                                    else
-                                                        jsonValue.put(displayKey, value);
-
-                                                    userSelectedValues.put(jsonValue);
-                                                }
-                                            } catch (JSONException je) {
-
-                                            }
-
-                                            final PluginResult resultToReturnToJS = new PluginResult(PluginResult.Status.OK, (userSelectedValues));
-                                            callbackContext.sendPluginResult(resultToReturnToJS);
-                                            dialog.dismiss();
+                                            confirm.accept(dialog);
 
                                         }
                                     })
@@ -187,12 +205,17 @@ public class SelectorCordovaPlugin extends CordovaPlugin {
     public static List<PickerView> getPickerViews(Activity activity, JSONArray items, JSONObject defaultSelectedValues) throws JSONException {
         List<PickerView> views = new ArrayList<PickerView>();
         for (int i = 0; i < items.length(); ++i) {
+            Log.d(TAG, "items=" + items);
+            Log.d(TAG, "defaultSelectedValues=" + defaultSelectedValues);
             if(defaultSelectedValues != null && defaultSelectedValues.length() == items.length()){
 
                 try {
+                    Log.d(TAG, "i=" + Integer.toString(i));
                     String defaultSelctedValue = defaultSelectedValues.getString(Integer.toString(i));
+                    Log.d(TAG, "defaultSelctedValue=" + defaultSelctedValue);
                     views.add(new PickerView(activity, items.getJSONArray(i), defaultSelctedValue));
                 }catch(JSONException je) {
+                    Log.d(TAG, "JSONException=" + je.getMessage());
                     views.add(new PickerView(activity, items.getJSONArray(i), ""));
                 }
             }else {
@@ -261,6 +284,8 @@ public class SelectorCordovaPlugin extends CordovaPlugin {
         }
         return false;
     }
+
+
 }
 
 
